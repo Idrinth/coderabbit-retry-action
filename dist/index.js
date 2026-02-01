@@ -31927,12 +31927,18 @@ async function run() {
       core.info(`\n${'='.repeat(50)}`);
       core.info(`Sending review commands to ${prsToRetry.length} PR(s) in 3 phases (pause, review, resume)...`);
 
-      // Phase 1: Send @coderabbitai pause to all eligible PRs
+      // Phase 1: Send info comment + @coderabbitai pause to all eligible PRs
       core.info(`\nPhase 1: Sending @coderabbitai pause`);
       for (const pr of prsToRetry) {
         if (dryRun) {
           core.info(`[DRY RUN] Would send @coderabbitai pause to PR #${pr.number}`);
         } else {
+          await octokit.rest.issues.createComment({
+            owner,
+            repo,
+            issue_number: pr.number,
+            body: `_Automated retry request due to previous rate limit. Triggered by [CodeRabbit Retry Action](https://github.com/Idrinth/coderabbit-retry-action)._`,
+          });
           await octokit.rest.issues.createComment({
             owner,
             repo,
@@ -31949,18 +31955,12 @@ async function run() {
         await sleep(60000);
       }
 
-      // Phase 2: Send info comment + @coderabbitai review to all eligible PRs
+      // Phase 2: Send @coderabbitai review to all eligible PRs
       core.info(`\nPhase 2: Sending @coderabbitai review`);
       for (const pr of prsToRetry) {
         if (dryRun) {
           core.info(`[DRY RUN] Would send @coderabbitai review to PR #${pr.number}`);
         } else {
-          await octokit.rest.issues.createComment({
-            owner,
-            repo,
-            issue_number: pr.number,
-            body: `_Automated retry request due to previous rate limit. Triggered by [CodeRabbit Retry Action](https://github.com/Idrinth/coderabbit-retry-action)._`,
-          });
           await octokit.rest.issues.createComment({
             owner,
             repo,
