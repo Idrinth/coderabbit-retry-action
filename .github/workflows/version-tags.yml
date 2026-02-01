@@ -1,0 +1,31 @@
+name: Manage version tags
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: write
+
+jobs:
+  update-version-tags:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Parse version and update tags
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$TAG"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git tag -f "v${MAJOR}" "$TAG"
+          git tag -f "v${MAJOR}.${MINOR}" "$TAG"
+          git tag -f "v${MAJOR}.${MINOR}.${PATCH}" "$TAG"
+
+          git push -f origin "v${MAJOR}" "v${MAJOR}.${MINOR}" "v${MAJOR}.${MINOR}.${PATCH}"
