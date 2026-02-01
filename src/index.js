@@ -183,9 +183,14 @@ async function checkAndRetryPR(octokit, { owner, repo, pr, cooldownHours, dryRun
     owner,
     repo,
     issue_number: pr.number,
-    body: `@coderabbitai review
+    body: `_Automated retry request due to previous rate limit. Triggered by [CodeRabbit Retry Action](https://github.com/Idrinth/coderabbit-retry-action)._`,
+  });
 
-_Automated retry request due to previous rate limit. Triggered by [CodeRabbit Retry Action](https://github.com/YOUR_USERNAME/coderabbit-retry-action)._`,
+  await octokit.rest.issues.createComment({
+    owner,
+    repo,
+    issue_number: pr.number,
+    body: `@coderabbitai review`,
   });
 
   return { retryRequested: true, reason: 'Retry requested successfully' };
