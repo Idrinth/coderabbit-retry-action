@@ -1,6 +1,6 @@
 {
   "name": "coderabbit-retry-action",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "GitHub Action to automatically retry CodeRabbit reviews when rate limited",
   "main": "dist/index.js",
   "scripts": {
