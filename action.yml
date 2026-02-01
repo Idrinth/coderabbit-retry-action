@@ -1,0 +1,44 @@
+name: 'CodeRabbit Retry'
+description: 'Automatically retry CodeRabbit reviews when rate limited'
+author: 'Your Name'
+
+branding:
+  icon: 'refresh-cw'
+  color: 'orange'
+
+inputs:
+  github-token:
+    description: 'GitHub token with pull request permissions'
+    required: true
+  max-retries:
+    description: 'Maximum number of retry requests per run'
+    required: false
+    default: '4'
+  cooldown-hours:
+    description: 'Hours to wait before retrying the same PR again'
+    required: false
+    default: '2'
+  dry-run:
+    description: 'If true, only log what would be done without posting comments'
+    required: false
+    default: 'false'
+  ignore-branches:
+    description: 'Comma-separated branch patterns to ignore (supports wildcards, e.g. "dependabot/*,renovate/*")'
+    required: false
+    default: ''
+  ignore-labels:
+    description: 'Comma-separated labels to ignore (PRs with any of these labels will be skipped)'
+    required: false
+    default: ''
+
+outputs:
+  retries-requested:
+    description: 'Number of retry requests made'
+  prs-checked:
+    description: 'Number of PRs checked'
+  prs-skipped:
+    description: 'Number of PRs skipped (already reviewed or no rate limit)'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
