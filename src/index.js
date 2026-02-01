@@ -112,7 +112,7 @@ async function checkAndRetryPR(octokit, { owner, repo, pr, cooldownHours, dryRun
 
   const coderabbitReview = reviews.find(
     (review) =>
-      review.user?.login?.toLowerCase() === 'coderabbitai' &&
+      review.user?.login?.toLowerCase() === 'coderabbitai[bot]' &&
       review.commit_id === latestCommitSha &&
       !review.body?.toLowerCase().includes('exceeded the limit')
   );
@@ -142,11 +142,11 @@ async function checkAndRetryPR(octokit, { owner, repo, pr, cooldownHours, dryRun
   // as the summary body of a PR review (not as a comment)
   const rateLimitComment = allComments.find(
     (comment) =>
-      comment.user?.login?.toLowerCase() === 'coderabbitai' &&
+      comment.user?.login?.toLowerCase() === 'coderabbitai[bot]' &&
       comment.body?.toLowerCase().includes('exceeded the limit')
   ) || reviews.find(
     (review) =>
-      review.user?.login?.toLowerCase() === 'coderabbitai' &&
+      review.user?.login?.toLowerCase() === 'coderabbitai[bot]' &&
       review.body?.toLowerCase().includes('exceeded the limit')
   );
 
