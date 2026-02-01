@@ -29,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Retry CodeRabbit Reviews
-        uses: YOUR_USERNAME/coderabbit-retry-action@v1
+        uses: idrinth/coderabbit-retry-action@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -54,7 +54,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Retry CodeRabbit Reviews
-        uses: YOUR_USERNAME/coderabbit-retry-action@v1
+        uses: idrintj/coderabbit-retry-action@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           max-retries: '4'
@@ -88,7 +88,7 @@ jobs:
 ```yaml
 - name: Retry CodeRabbit Reviews
   id: retry
-  uses: YOUR_USERNAME/coderabbit-retry-action@v1
+  uses: idrinth/coderabbit-retry-action@v1
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
 
