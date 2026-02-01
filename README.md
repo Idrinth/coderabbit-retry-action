@@ -1,6 +1,6 @@
 # CodeRabbit Retry Action
 
-Automatically retry [CodeRabbit](https://coderabbit.ai) reviews when they fail due to rate limiting.
+Automatically retry [CodeRabbit](https://coderabbit.ai) reviews when they fail due to rate limiting. This is currently generated using [Claude](https://claude.ai) and merely reviewed by me.
 
 ## Why?
 
