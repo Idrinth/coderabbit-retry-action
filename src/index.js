@@ -37,9 +37,12 @@ async function run() {
 
     core.info(`Found ${pullRequests.length} open PRs`);
 
+    // Phase 0: Identify all PRs that need a retry
+    const prsToRetry = [];
+
     for (const pr of pullRequests) {
-      if (retryCount >= maxRetries) {
-        core.info(`\nReached max retry limit (${maxRetries}). Stopping.`);
+      if (prsToRetry.length >= maxRetries) {
+        core.info(`\nReached max retry limit (${maxRetries}). Stopping evaluation.`);
         break;
       }
 
@@ -51,36 +54,110 @@ async function run() {
       const branchName = pr.head.ref;
       if (matchesPattern(branchName, ignoreBranches)) {
         prsSkipped++;
-        core.info(`⏭️ Skipped: Branch "${branchName}" matches ignore pattern`);
+        core.info(`Skipped: Branch "${branchName}" matches ignore pattern`);
         continue;
       }
 
       // Check label blacklist
       const prLabels = pr.labels.map(label => label.name.toLowerCase());
-      const matchedLabel = ignoreLabels.find(ignoreLabel => 
+      const matchedLabel = ignoreLabels.find(ignoreLabel =>
         prLabels.includes(ignoreLabel.toLowerCase())
       );
       if (matchedLabel) {
         prsSkipped++;
-        core.info(`⏭️ Skipped: PR has ignored label "${matchedLabel}"`);
+        core.info(`Skipped: PR has ignored label "${matchedLabel}"`);
         continue;
       }
 
-      const result = await checkAndRetryPR(octokit, {
+      const result = await checkIfRetryNeeded(octokit, {
         owner,
         repo,
         pr,
         cooldownHours,
-        dryRun,
       });
 
-      if (result.retryRequested) {
-        retryCount++;
-        core.info(`✅ Retry requested (${retryCount}/${maxRetries})`);
+      if (result.retryNeeded) {
+        prsToRetry.push(pr);
+        core.info(`Retry needed for PR #${pr.number}`);
       } else {
         prsSkipped++;
-        core.info(`⏭️ Skipped: ${result.reason}`);
+        core.info(`Skipped: ${result.reason}`);
       }
+    }
+
+    retryCount = prsToRetry.length;
+
+    if (prsToRetry.length > 0) {
+      core.info(`\n${'='.repeat(50)}`);
+      core.info(`Sending review commands to ${prsToRetry.length} PR(s) in 3 phases (pause, review, resume)...`);
+
+      // Phase 1: Send info comment + @coderabbitai pause to all eligible PRs
+      core.info(`\nPhase 1: Sending @coderabbitai pause`);
+      for (const pr of prsToRetry) {
+        if (dryRun) {
+          core.info(`[DRY RUN] Would send @coderabbitai pause to PR #${pr.number}`);
+        } else {
+          await octokit.rest.issues.createComment({
+            owner,
+            repo,
+            issue_number: pr.number,
+            body: `_Automated retry request due to previous rate limit. Triggered by [CodeRabbit Retry Action](https://github.com/Idrinth/coderabbit-retry-action)._`,
+          });
+          await octokit.rest.issues.createComment({
+            owner,
+            repo,
+            issue_number: pr.number,
+            body: `@coderabbitai pause`,
+          });
+          core.info(`Sent @coderabbitai pause to PR #${pr.number}`);
+        }
+      }
+
+      // Wait 1 minute
+      if (!dryRun) {
+        core.info(`\nWaiting 60 seconds before next phase...`);
+        await sleep(60000);
+      }
+
+      // Phase 2: Send @coderabbitai review to all eligible PRs
+      core.info(`\nPhase 2: Sending @coderabbitai review`);
+      for (const pr of prsToRetry) {
+        if (dryRun) {
+          core.info(`[DRY RUN] Would send @coderabbitai review to PR #${pr.number}`);
+        } else {
+          await octokit.rest.issues.createComment({
+            owner,
+            repo,
+            issue_number: pr.number,
+            body: `@coderabbitai review`,
+          });
+          core.info(`Sent @coderabbitai review to PR #${pr.number}`);
+        }
+      }
+
+      // Wait 1 minute
+      if (!dryRun) {
+        core.info(`\nWaiting 60 seconds before next phase...`);
+        await sleep(60000);
+      }
+
+      // Phase 3: Send @coderabbitai resume to all eligible PRs
+      core.info(`\nPhase 3: Sending @coderabbitai resume`);
+      for (const pr of prsToRetry) {
+        if (dryRun) {
+          core.info(`[DRY RUN] Would send @coderabbitai resume to PR #${pr.number}`);
+        } else {
+          await octokit.rest.issues.createComment({
+            owner,
+            repo,
+            issue_number: pr.number,
+            body: `@coderabbitai resume`,
+          });
+          core.info(`Sent @coderabbitai resume to PR #${pr.number}`);
+        }
+      }
+
+      core.info(`\nAll 3 phases complete.`);
     }
 
     // Set outputs
@@ -99,7 +176,7 @@ async function run() {
   }
 }
 
-async function checkAndRetryPR(octokit, { owner, repo, pr, cooldownHours, dryRun }) {
+async function checkIfRetryNeeded(octokit, { owner, repo, pr, cooldownHours }) {
   const latestCommitSha = pr.head.sha;
   core.info(`Latest commit: ${latestCommitSha.substring(0, 7)}`);
 
@@ -118,7 +195,7 @@ async function checkAndRetryPR(octokit, { owner, repo, pr, cooldownHours, dryRun
   );
 
   if (coderabbitReview) {
-    return { retryRequested: false, reason: 'CodeRabbit already reviewed latest commit' };
+    return { retryNeeded: false, reason: 'CodeRabbit already reviewed latest commit' };
   }
 
   // Get issue comments
@@ -151,49 +228,33 @@ async function checkAndRetryPR(octokit, { owner, repo, pr, cooldownHours, dryRun
   );
 
   if (!rateLimitComment) {
-    return { retryRequested: false, reason: 'No rate limit comment from CodeRabbit' };
+    return { retryNeeded: false, reason: 'No rate limit comment from CodeRabbit' };
   }
 
   core.info(`Found rate limit comment from CodeRabbit (${new Date(rateLimitComment.created_at).toISOString()})`);
 
-  // Check cooldown period
+  // Check cooldown period - look for any of the retry commands posted by this action
   const cooldownTime = new Date(Date.now() - cooldownHours * 60 * 60 * 1000);
   const recentRetryRequest = comments.find(
     (comment) =>
       comment.user?.login === 'github-actions[bot]' &&
-      comment.body?.includes('@coderabbitai review') &&
+      comment.body?.includes('@coderabbitai pause') &&
       new Date(comment.created_at) > cooldownTime
   );
 
   if (recentRetryRequest) {
     const requestedAt = new Date(recentRetryRequest.created_at);
     return {
-      retryRequested: false,
+      retryNeeded: false,
       reason: `Retry already requested at ${requestedAt.toISOString()} (within ${cooldownHours}h cooldown)`,
     };
   }
 
-  // Request CodeRabbit review
-  if (dryRun) {
-    core.info(`[DRY RUN] Would request CodeRabbit review for PR #${pr.number}`);
-    return { retryRequested: true, reason: 'Dry run - no comment posted' };
-  }
+  return { retryNeeded: true };
+}
 
-  await octokit.rest.issues.createComment({
-    owner,
-    repo,
-    issue_number: pr.number,
-    body: `_Automated retry request due to previous rate limit. Triggered by [CodeRabbit Retry Action](https://github.com/Idrinth/coderabbit-retry-action)._`,
-  });
-
-  await octokit.rest.issues.createComment({
-    owner,
-    repo,
-    issue_number: pr.number,
-    body: `@coderabbitai review`,
-  });
-
-  return { retryRequested: true, reason: 'Retry requested successfully' };
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 /**
